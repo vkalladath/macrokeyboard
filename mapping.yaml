@@ -1,0 +1,25 @@
+# Macro pad mapping — CH57x 3x1 keys + 1 knob (USB 1189:8890)
+#
+# Physical layout, normal orientation: buttons on the left, knob on the right.
+#   [ key 1 ] [ key 2 ] [ key 3 ]   (o) knob
+#
+# Programming requires write access to the vendor interface (1.1, EP 0x02 OUT).
+# See README.md — a udev rule grants this to the logged-in user.
+
+model: ch57x-2
+orientation: normal
+rows: 1
+columns: 3
+knobs: 1
+
+# This pad has no layer-switch button, so a single layer is used.
+layers:
+  - buttons:
+      # key 1: mic mute
+      #   The CH57x consumer page has no "mic mute" usage, so emit a chord
+      #   that nothing else uses and bind it in GNOME (see setup-mic-mute.sh).
+      - ["ctrl-alt-shift-m", "play", "mute"]
+    knobs:
+      - ccw: "volumedown"
+        press: null
+        cw: "volumeup"

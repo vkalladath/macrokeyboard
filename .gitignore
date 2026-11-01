@@ -1,0 +1,6 @@
+# Locally built/copied binary — install with `cargo install ch57x-keyboard-tool`
+bin/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
