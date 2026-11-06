@@ -1,0 +1,16 @@
+[Unit]
+Description=Macro pad overlay menu
+Documentation=https://github.com/vkalladath/macrokeyboard
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# Adjust WorkingDirectory if the repo lives somewhere else.
+WorkingDirectory=%h/projects/macrokeyboard
+ExecStart=/usr/bin/python3 -m overlay.app
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

@@ -16,6 +16,15 @@ cargo install ch57x-keyboard-tool     # installs to ~/.cargo/bin
 ├── setup-udev.sh             # one-time sudo: grants write access
 ├── install-gnome-shortcut.sh # registers the mic-mute shortcut
 ├── mic-mute-toggle.sh        # toggles default mic source
+├── run-overlay.sh            # launches the scroll menu overlay
+├── overlay/                  # the overlay menu (see below)
+│   ├── app.py                # GTK4 UI + menu state machine
+│   ├── menus.py              # menu tree — add items here
+│   ├── audio.py              # pactl helpers
+│   ├── pad.py                # hidraw reader -> knob events
+│   └── style.css             # transparency / colours
+├── systemd/
+│   └── macropad-menu.service # run the overlay at login
 └── diagnostics/
     ├── capture2.py           # decode live HID reports from all interfaces
     ├── watch_mute.py         # correlate keypresses with mic state
@@ -70,9 +79,9 @@ layers:
   - buttons:
       - ["ctrl-alt-shift-m", "play", "mute"]
     knobs:
-      - ccw: "volumedown"
-        press: null
-        cw: "volumeup"
+      - ccw: "f13"
+        press: "f15"
+        cw: "f14"
 ```
 
 | Control | Sends | Notes |
@@ -80,9 +89,9 @@ layers:
 | Key 1 (left) | `Ctrl+Alt+Shift+M` | bound in GNOME to mic-mute toggle |
 | Key 2 (middle) | Consumer `0xCD` | play/pause |
 | Key 3 (right) | Consumer `0xE2` | mute (output) |
-| Knob ↻ | Consumer `0xE9` | volume up |
-| Knob ↺ | Consumer `0xEA` | volume down |
-| Knob press | — | unassigned, available |
+| Knob ↻ | `F14` | overlay: next item · closed: volume up |
+| Knob ↺ | `F13` | overlay: previous item · closed: volume down |
+| Knob press | `F15` | opens the overlay menu |
 
 Protocol bytes actually written to the device:
 
@@ -90,9 +99,86 @@ Protocol bytes actually written to the device:
 key 1:  03 01 11 01 01 07 10   macro, mods=0x07 (Ctrl+Shift+Alt), key=0x10 ('m')
 key 2:  03 02 12 cd 00         media usage 0x00CD
 key 3:  03 03 12 e2 00         media usage 0x00E2
-knob ↺: 03 0d 12 ea 00         media usage 0x00EA
-knob ↻: 03 0f 12 e9 00         media usage 0x00E9
+knob ↺: 03 0d 11 01 01 00 68   macro, no modifiers, key=0x68 (F13)
+knob ⏺: 03 0e 11 01 01 00 6a   macro, no modifiers, key=0x6A (F15)
+knob ↻: 03 0f 11 01 01 00 69   macro, no modifiers, key=0x69 (F14)
 ```
+
+## Scroll menu overlay
+
+Clicking the knob opens a translucent overlay; scrolling moves the selection,
+clicking activates it. It auto-dismisses after 12 s idle.
+
+```
+Macro pad
+  ▸ Audio controls
+      ├─ Switch audio source   →  ● current output
+      │                            ○ each other output
+      ├─ Volume up / down
+      ├─ Mute output
+      └─ Back
+  ▸ Microphone
+      ├─ Switch microphone
+      ├─ Mute microphone
+      └─ Back
+  ▸ System
+      ├─ Lock screen
+      ├─ Suspend
+      └─ Back
+  Close menu
+```
+
+```bash
+./run-overlay.sh            # normal
+./run-overlay.sh --preview  # open immediately; arrow keys + Enter also work
+```
+
+Run it at login:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp systemd/macropad-menu.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now macropad-menu.service
+```
+
+### Why the knob sends F13/F14/F15
+
+It used to send volume keys. Reusing those for menu navigation would change the
+system volume — with the OSD flashing — on every detent while scrolling. So the
+knob emits unused F-keys, and `overlay/app.py` interprets them:
+
+- **overlay open** → move the selection / activate
+- **overlay closed** → `pactl` volume step
+
+The trade-off: **knob volume now needs the overlay running**, and because
+`pactl` changes volume directly the GNOME volume OSD no longer appears when you
+turn it. Everything else on the pad is unaffected.
+
+### Adding menu items
+
+Edit `overlay/menus.py` only. An item is:
+
+```python
+Item("Label", action=some_callable, keep_open=True)  # or submenu="name"
+```
+
+`keep_open` leaves the overlay up so an action can be repeated (volume steps) or
+so dynamic content can refresh (the `●` marker moving after a source switch).
+Register any new submenu in `TITLES` and return its items from `items_for`.
+
+### Notes on the implementation
+
+- Reads `/dev/hidraw*` directly, so it needs no root, no `input` group and no
+  Wayland global-shortcut portal. It still works when the overlay is not focused.
+- Node names are resolved from sysfs by matching `1189:8890`, **not** hardcoded
+  as `hidraw6` — node numbers shift whenever any USB device is plugged in.
+- GNOME/Wayland has no `wlr-layer-shell`, so the window cannot be positioned or
+  pinned above other windows; the compositor centres it. It does not steal input
+  focus from the app underneath for typing, but it is a normal toplevel, so it
+  appears in Alt-Tab.
+- Arrow keys and Enter are accepted as a fallback, which is how you can test the
+  menu with the pad unplugged.
 
 ## Why mic mute is a chord, not a media key
 
@@ -108,8 +194,9 @@ So key 1 emits a rare chord that nothing else uses, and GNOME runs
   `Ctrl+Alt+Shift+M` would also trigger. A `keyd` layer that swallows the chord
   fixes that if it ever matters.
 
-Keys 2, 3 and the knob are plain kernel-level HID — they work in a TTY, at the
-lock screen, and without any desktop software running.
+Keys 2 and 3 are plain kernel-level HID — they work in a TTY, at the lock
+screen, and without any desktop software running. The knob is different: its
+volume function now lives in `overlay/app.py`, so it needs the overlay running.
 
 ## Setup (already done on this machine)
 
@@ -148,13 +235,16 @@ Key names: `ch57x-keyboard-tool show-keys`
 Action syntax (mouse, media, sequences, `delay()`):
 <https://github.com/kriomant/ch57x-keyboard-tool/blob/master/doc/actions.md>
 
-Example — assign the knob press:
+Example — change what the knob press opens (the overlay listens for `F15`):
 
 ```yaml
-      - ccw: "volumedown"
-        press: "play"
-        cw: "volumeup"
+      - ccw: "f13"
+        press: "f15"
+        cw: "f14"
 ```
+
+Don't put `volumeup`/`volumedown` back on the knob while the overlay is in use:
+scrolling a menu would change the system volume on every detent.
 
 Example — a multi-key sequence (note the 3x1 limitation below):
 
@@ -171,7 +261,7 @@ All checks below were run against the live device.
 | All keys + knob distinct | raw `hidraw` capture | ✅ each emits its own usage |
 | Key order left→right | capture vs. labelled presses | ✅ matches `mapping.yaml` |
 | Key 1 chord bytes | `01 07 00 10` | ✅ LCtrl+LShift+LAlt + `m` |
-| Knob direction | ↻ `0xE9`, ↺ `0xEA` | ✅ clockwise = louder |
+| Knob direction | ↻ `F14`, ↺ `F13` | ✅ overlay next / previous |
 | GNOME shortcut fires | `PAD` press → `MIC` state change | ✅ |
 | No double-fire | one press ⇒ one toggle | ✅ |
 
@@ -212,3 +302,8 @@ This is the original factory state; re-upload `mapping.yaml`.
 - **No layer switching** — this pad has no layer button, so only one of the
   three firmware layers is programmed.
 - **Max 5 accords per key**, and `delay()` is unsupported on model `0x8890`.
+- **Knob volume depends on the overlay.** The knob emits `F13`/`F14`, so volume
+  stepping only happens while `overlay/app.py` is running, and the GNOME volume
+  OSD no longer appears (volume is set via `pactl`, not a media key).
+- **The overlay window cannot be positioned** on GNOME/Wayland (no
+  `wlr-layer-shell`); the compositor decides where it appears.
