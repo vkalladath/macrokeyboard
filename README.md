@@ -21,6 +21,7 @@ cargo install ch57x-keyboard-tool     # installs to ~/.cargo/bin
 │   ├── app.py                # GTK4 UI + menu state machine
 │   ├── menus.py              # menu tree — add items here
 │   ├── audio.py              # pactl helpers
+│   ├── volume.py             # volume keys via uinput (gives the OSD back)
 │   ├── pad.py                # hidraw reader -> knob events
 │   └── style.css             # transparency / colours
 ├── systemd/
@@ -149,11 +150,21 @@ system volume — with the OSD flashing — on every detent while scrolling. So 
 knob emits unused F-keys, and `overlay/app.py` interprets them:
 
 - **overlay open** → move the selection / activate
-- **overlay closed** → `pactl` volume step
+- **overlay closed** → volume step
 
-The trade-off: **knob volume now needs the overlay running**, and because
-`pactl` changes volume directly the GNOME volume OSD no longer appears when you
-turn it. Everything else on the pad is unaffected.
+Volume is applied by emitting real `KEY_VOLUMEUP`/`KEY_VOLUMEDOWN` events from a
+uinput virtual keyboard (`overlay/volume.py`), **not** by calling `pactl`. That
+matters: because the desktop sees genuine key events it shows its usual volume
+OSD and applies its own policies. If uinput is unavailable the module falls back
+to `pactl`, and the OSD is lost in that case only.
+
+The cost is that **knob volume needs the overlay running** — the device itself
+no longer sends volume keys. Everything else on the pad is unaffected, and keys
+2 and 3 keep working with no software running.
+
+The virtual device appears in the system as an extra keyboard named
+"Macro pad volume". It has only the two volume keys and exists only while the
+overlay runs.
 
 ### Adding menu items
 
@@ -264,6 +275,7 @@ Status of each piece, honestly:
 | GNOME shortcut fires | `PAD` press → `MIC` state change | ✅ |
 | No double-fire | one press ⇒ one toggle | ✅ |
 | Audio layer (`pactl`) | sink list, no-op switch, volume ±5% | ✅ |
+| Volume via uinput | synthetic keys moved the sink 97→100→94 | ✅ OSD path works |
 | Menu trees build | `items_for()` on every menu | ✅ |
 | Overlay launches | 3 s GTK4 run, no warnings | ✅ |
 | **Knob → F13/F14/F15** | — | ⏳ **not yet flashed** (pad was unplugged) |
@@ -317,7 +329,7 @@ This is the original factory state; re-upload `mapping.yaml`.
   three firmware layers is programmed.
 - **Max 5 accords per key**, and `delay()` is unsupported on model `0x8890`.
 - **Knob volume depends on the overlay.** The knob emits `F13`/`F14`, so volume
-  stepping only happens while `overlay/app.py` is running, and the GNOME volume
-  OSD no longer appears (volume is set via `pactl`, not a media key).
+  stepping only happens while `overlay/app.py` is running. If it dies, the knob
+  is inert for volume (keys 2 and 3 still work).
 - **The overlay window cannot be positioned** on GNOME/Wayland (no
   `wlr-layer-shell`); the compositor decides where it appears.

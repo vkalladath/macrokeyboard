@@ -9,7 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from . import audio
+from . import audio, volume
 
 
 @dataclass
@@ -72,8 +72,8 @@ def items_for(menu):
     if menu == "audio":
         return [
             Item("Switch audio source", submenu="sinks"),
-            Item("Volume up", action=lambda: audio.volume_step(+1), keep_open=True),
-            Item("Volume down", action=lambda: audio.volume_step(-1), keep_open=True),
+            Item("Volume up", action=lambda: volume.step(+1), keep_open=True),
+            Item("Volume down", action=lambda: volume.step(-1), keep_open=True),
             Item("Mute output", action=audio.toggle_output_mute, keep_open=True),
             Item("‹  Back", back=True),
         ]

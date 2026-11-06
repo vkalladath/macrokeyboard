@@ -14,7 +14,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
-from . import audio, menus  # noqa: E402
+from . import audio, menus, volume  # noqa: E402
 from .pad import PadReader  # noqa: E402
 
 IDLE_CLOSE_SECONDS = 12
@@ -36,6 +36,12 @@ class Overlay(Gtk.Application):
     def do_activate(self):
         self._build()
         self._load_css()
+
+        # Create the synthetic-input device now, not on the first detent.
+        volume.warm_up()
+        if not volume.using_uinput():
+            print("note: volume will not show the desktop OSD (uinput unavailable)",
+                  file=sys.stderr)
 
         self.reader = PadReader(self._on_encoder)
         nodes = self.reader.start()
@@ -173,9 +179,17 @@ class Overlay(Gtk.Application):
             except Exception as error:  # keep the overlay alive on failure
                 print(f"action failed: {error}", file=sys.stderr)
             if item.keep_open:
+                # The desktop applies synthetic volume keys asynchronously,
+                # so refresh the footer a moment later to show the new level.
                 self._render()
+                GLib.timeout_add(200, self._refresh)
             else:
                 self.close_menu()
+
+    def _refresh(self):
+        if self._visible():
+            self._render()
+        return False
 
     # ---- idle auto-dismiss ---------------------------------------------
 
@@ -212,9 +226,9 @@ class Overlay(Gtk.Application):
             if action == "press":
                 self.open_menu()
             elif action == "cw":
-                audio.volume_step(+1)
+                volume.step(+1)
             elif action == "ccw":
-                audio.volume_step(-1)
+                volume.step(-1)
         except Exception as error:
             print(f"volume failed: {error}", file=sys.stderr)
 
