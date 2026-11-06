@@ -254,18 +254,32 @@ Example — a multi-key sequence (note the 3x1 limitation below):
 
 ## Verification
 
-All checks below were run against the live device.
+Status of each piece, honestly:
 
 | Check | Method | Result |
 |---|---|---|
-| All keys + knob distinct | raw `hidraw` capture | ✅ each emits its own usage |
-| Key order left→right | capture vs. labelled presses | ✅ matches `mapping.yaml` |
+| All keys + knob distinct | raw `hidraw` capture | ✅ |
+| Key order left→right | capture vs. labelled presses | ✅ |
 | Key 1 chord bytes | `01 07 00 10` | ✅ LCtrl+LShift+LAlt + `m` |
-| Knob direction | ↻ `F14`, ↺ `F13` | ✅ overlay next / previous |
 | GNOME shortcut fires | `PAD` press → `MIC` state change | ✅ |
 | No double-fire | one press ⇒ one toggle | ✅ |
+| Audio layer (`pactl`) | sink list, no-op switch, volume ±5% | ✅ |
+| Menu trees build | `items_for()` on every menu | ✅ |
+| Overlay launches | 3 s GTK4 run, no warnings | ✅ |
+| **Knob → F13/F14/F15** | — | ⏳ **not yet flashed** (pad was unplugged) |
+| **Overlay look & feel** | — | ⏳ needs your eyes |
 
-Re-run any of these:
+The knob remap is written to `mapping.yaml` but has **not** been uploaded to the
+device. Until it is, the knob still emits `VOL+`/`VOL-` and pressing it does
+nothing, so the overlay will not respond to the knob. Re-upload with the pad
+plugged in:
+
+```bash
+ch57x-keyboard-tool validate < mapping.yaml
+ch57x-keyboard-tool upload   mapping.yaml
+```
+
+Re-run the device checks:
 
 ```bash
 ./diagnostics/capture2.py 60          # press keys, watch decoded reports
