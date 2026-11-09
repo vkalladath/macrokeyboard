@@ -351,6 +351,26 @@ transfers, with `hid-generic` bound and input devices registered. No software
 fix exists; **unplug and replug**. If it recurs often, suspect the cable, the
 port, or USB power.
 
+## LED modes (empirical)
+
+`ch57x-keyboard-tool led <mode>` sends a single mode byte (`03 b0 18 <mode>`).
+The OEM's published table does **not** match this unit. Measured here:
+
+| Mode | Behaviour |
+|---|---|
+| 0 | off |
+| **1** | reactive colour: a pressed key lights and breathes, the others go dark; fades out when idle |
+| **2** | multi-colour sweep, continuous, never times out |
+| 3 | all off |
+| 4 | nothing — OEM claims "a single key lights when pressed"; not implemented here |
+| 5 | nothing — OEM claims "white, all keys" |
+
+Only modes 1 and 2 do anything, and neither is addressable per key.
+
+Mode 2 is the most expensive: it animates indefinitely, drawing from the USB
+port continuously, so it costs more power than the overlay daemon does. Mode 1
+fades when idle; mode 0 draws nothing. For everyday use prefer **1** or **0**.
+
 ## Known limitations
 
 - **No read-back.** The chip is write-only: the current mapping cannot be
