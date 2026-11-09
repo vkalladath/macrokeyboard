@@ -12,6 +12,7 @@ cargo install ch57x-keyboard-tool     # installs to ~/.cargo/bin
 ```
 .
 ├── README.md
+├── LICENSE                   # MIT
 ├── mapping.yaml              # the device mapping — source of truth
 ├── setup-udev.sh             # one-time sudo: grants write access
 ├── install-gnome-shortcut.sh # registers the mic-mute shortcut
@@ -372,3 +373,23 @@ port, or USB power.
   `MacroPadStudio`'s device table, `jvspier/macropad-rebind`). Modes 0–5 give
   canned effects only; mode 1 is a reactive breathing effect that fades out
   when idle. Lighting an LED to mean "mic muted" would require custom firmware.
+
+## License
+
+[MIT](LICENSE) — use it, fork it, ship it, sell it. No attribution required
+beyond keeping the copyright notice.
+
+### Credits
+
+The device protocol was learned by observing this unit and reading
+[`ch57x-keyboard-tool`](https://github.com/kriomant/ch57x-keyboard-tool)
+(MIT OR Apache-2.0, by kriomant), which does the actual programming. No code
+from that project is included here — this repository only invokes it, and
+reimplements the small amount of framing needed for LED modes and hand-verify
+captures.
+
+Prior art consulted for the LED question:
+[`rOzzy1987/MacroPad`](https://github.com/rOzzy1987/MacroPad),
+[`fabiodalez-dev/MacroPadStudio`](https://github.com/fabiodalez-dev/MacroPadStudio),
+[`jvspier/macropad-rebind`](https://github.com/jvspier/macropad-rebind),
+[`nonatofabio/macrokey-driver`](https://github.com/nonatofabio/macrokey-driver).
