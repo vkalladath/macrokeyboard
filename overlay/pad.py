@@ -99,6 +99,7 @@ class PadReader:
         self._on_event = on_event
         self._held = {}      # fd -> set of keycodes held as of the last report
         self._node_of = {}   # fd -> node path
+        self._id_of = {}     # fd -> (st_dev, st_ino) of the node when opened
         self._fds = []
         self._uevent_socket = None
         self._safety_id = 0
@@ -146,6 +147,11 @@ class PadReader:
         for fd, node in list(self._node_of.items()):
             if node not in wanted:
                 self._drop(fd, "removed")
+            elif not self._still_same(node, fd):
+                # Same path, different device: the node was reused by a new
+                # enumeration. A descriptor on the old one never signals
+                # anything, so comparing paths alone would miss this.
+                self._drop(fd, "replaced by new enumeration")
 
         have = set(self._node_of.values())
         for node in sorted(wanted - have):
@@ -154,6 +160,13 @@ class PadReader:
         if self._node_of:
             self.problems = []
         return self.nodes
+
+    def _still_same(self, node, fd):
+        try:
+            stat = os.stat(node)
+        except OSError:
+            return False
+        return self._id_of.get(fd) == (stat.st_dev, stat.st_ino)
 
     def _open_node(self, node):
         try:
@@ -170,6 +183,11 @@ class PadReader:
         self._fds.append(fd)
         self._held[fd] = set()
         self._node_of[fd] = node
+        try:
+            stat = os.stat(node)
+            self._id_of[fd] = (stat.st_dev, stat.st_ino)
+        except OSError:
+            self._id_of[fd] = None
         self.nodes.append(node)
         GLib.io_add_watch(fd, GLib.IO_IN, self._on_readable)
         print(f"pad: attached {node}", file=sys.stderr, flush=True)
@@ -183,6 +201,7 @@ class PadReader:
         if fd in self._fds:
             self._fds.remove(fd)
         self._held.pop(fd, None)
+        self._id_of.pop(fd, None)
         if node in self.nodes:
             self.nodes.remove(node)
         if node:
