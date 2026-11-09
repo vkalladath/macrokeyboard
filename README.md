@@ -150,6 +150,18 @@ systemctl --user daemon-reload
 systemctl --user enable --now macropad-menu.service
 ```
 
+Once installed, everything is managed through systemd:
+
+```bash
+systemctl --user status  macropad-menu.service
+systemctl --user restart macropad-menu.service
+journalctl --user -u macropad-menu.service -f     # live log
+```
+
+The log is the fastest way to diagnose a dead knob: `pad: detached … /
+pad: attached …` means a replug was handled, while nothing at all after a
+knob turn means the pad is not sending (see Troubleshooting).
+
 ### Why the knob sends F13/F14/F15
 
 It used to send volume keys. Reusing those for menu navigation would change the
@@ -235,6 +247,12 @@ sudo ./setup-udev.sh
 # 3. write the mapping into the device
 ch57x-keyboard-tool validate < mapping.yaml
 ch57x-keyboard-tool upload   mapping.yaml
+
+# 4. one-time: start the overlay at login
+mkdir -p ~/.config/systemd/user
+cp systemd/macropad-menu.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now macropad-menu.service
 ```
 
 The vendor interface has no hidraw node and `/dev/bus/usb/...` is root-only, so
