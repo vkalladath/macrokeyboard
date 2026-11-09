@@ -17,7 +17,7 @@ from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 from . import audio, menus, volume  # noqa: E402
 from .pad import PadReader  # noqa: E402
 
-IDLE_CLOSE_SECONDS = 12
+IDLE_CLOSE_SECONDS = 5
 
 
 class Overlay(Gtk.Application):
@@ -28,6 +28,7 @@ class Overlay(Gtk.Application):
         self.stack = []
         self.index = 0
         self._idle_id = 0
+        self._was_active = False
         self._rows = []
         self.window = None
         self.reader = None
@@ -62,15 +63,15 @@ class Overlay(Gtk.Application):
         win.set_resizable(False)
         win.set_title("Macro pad menu")
         win.add_css_class("overlay")
-        win.set_default_size(340, -1)
+        win.set_default_size(476, -1)
 
         # Margins leave the window itself fully transparent around the panel.
         panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         panel.add_css_class("panel")
-        panel.set_margin_top(10)
-        panel.set_margin_bottom(10)
-        panel.set_margin_start(10)
-        panel.set_margin_end(10)
+        panel.set_margin_top(14)
+        panel.set_margin_bottom(14)
+        panel.set_margin_start(14)
+        panel.set_margin_end(14)
 
         self.title_label = Gtk.Label(xalign=0)
         self.title_label.add_css_class("title")
@@ -82,7 +83,7 @@ class Overlay(Gtk.Application):
         self.status_label = Gtk.Label(xalign=0)
         self.status_label.add_css_class("status")
         self.status_label.set_wrap(True)
-        self.status_label.set_max_width_chars(34)
+        self.status_label.set_max_width_chars(46)
         panel.append(self.status_label)
 
         hint = Gtk.Label(label="scroll  ·  click", xalign=0)
@@ -94,6 +95,12 @@ class Overlay(Gtk.Application):
         controller = Gtk.EventControllerKey()
         controller.connect("key-pressed", self._on_key)
         win.add_controller(controller)
+
+        # Dismiss when the overlay loses focus. Only act on a real
+        # active -> inactive transition: on Wayland the compositor may never
+        # grant focus in the first place, and closing on that would make the
+        # menu flicker shut the moment it opened.
+        win.connect("notify::is-active", self._on_active_changed)
 
         self.hold()  # keep the process alive while the window is hidden
         self.window = win
@@ -110,6 +117,15 @@ class Overlay(Gtk.Application):
 
     def _visible(self):
         return bool(self.window) and self.window.get_visible()
+
+    def _on_active_changed(self, window, _param):
+        if window.get_property("is-active"):
+            self._was_active = True
+            return
+        if self._was_active and self._visible():
+            if self.debug:
+                print("overlay: focus lost, closing", file=sys.stderr, flush=True)
+            self.close_menu()
 
     def _render(self):
         if not self.stack:
@@ -137,6 +153,7 @@ class Overlay(Gtk.Application):
     def open_menu(self):
         self.stack = ["main"]
         self.index = 0
+        self._was_active = False
         self.window.present()
         self._render()
         self._reset_idle()
@@ -145,6 +162,7 @@ class Overlay(Gtk.Application):
         self._cancel_idle()
         self.stack = []
         self.index = 0
+        self._was_active = False
         if self.window:
             self.window.set_visible(False)
 

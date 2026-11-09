@@ -113,7 +113,8 @@ knob ↻: 03 0f 11 01 01 00 69   macro, no modifiers, key=0x69 (F14)
 ## Scroll menu overlay
 
 Clicking the knob opens a translucent overlay; scrolling moves the selection,
-clicking activates it. It auto-dismisses after 12 s idle.
+clicking activates it. It dismisses after **5 s** with no input, and also
+dismisses as soon as it loses focus.
 
 ```
 Macro pad

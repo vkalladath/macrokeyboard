@@ -1,6 +1,8 @@
 /* The window itself is fully transparent — only .panel is painted, so the
    menu floats over whatever is on screen. Raise the panel's alpha for a more
-   solid look, or drop it to ~0.55 for a very translucent one. */
+   solid look, or drop it to ~0.55 for a very translucent one.
+
+   Sizes are ~40% up from the original (was: title 10, item 14, status 10). */
 
 window.overlay {
   background-color: transparent;
@@ -10,24 +12,24 @@ window.overlay {
 window.overlay .panel {
   background-color: rgba(16, 17, 21, 0.86);
   border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 18px;
-  padding: 16px 18px 14px 18px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  border-radius: 25px;
+  padding: 22px 25px 20px 25px;
+  box-shadow: 0 17px 56px rgba(0, 0, 0, 0.55);
 }
 
 window.overlay .title {
   color: rgba(255, 255, 255, 0.45);
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 2px;
-  margin-bottom: 8px;
+  letter-spacing: 2.8px;
+  margin-bottom: 11px;
 }
 
 window.overlay .item {
   color: rgba(255, 255, 255, 0.78);
-  font-size: 14px;
-  padding: 7px 10px;
-  border-radius: 9px;
+  font-size: 20px;
+  padding: 10px 14px;
+  border-radius: 13px;
 }
 
 window.overlay .item.selected {
@@ -38,12 +40,12 @@ window.overlay .item.selected {
 
 window.overlay .status {
   color: rgba(255, 255, 255, 0.34);
-  font-size: 10px;
-  margin-top: 10px;
+  font-size: 14px;
+  margin-top: 14px;
 }
 
 window.overlay .hint {
   color: rgba(255, 255, 255, 0.22);
-  font-size: 9px;
-  margin-top: 3px;
+  font-size: 13px;
+  margin-top: 4px;
 }
