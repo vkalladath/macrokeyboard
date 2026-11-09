@@ -48,14 +48,19 @@ This folder is self-contained and portable. Nothing depends on `/tmp`.
 
 | # | Class | Node | Notes |
 |---|---|---|---|
-| 1.0 | boot keyboard, 6KRO | `hidraw6` → `event18` | world-writable |
+| 1.0 | boot keyboard, 6KRO | `hidraw6` → `event18` | readable via udev ACL |
 | 1.1 | **vendor config**, EP `0x02` OUT | **none** | no driver bound — needs usbfs access |
 | 1.2 | 17-key rollover kbd + consumer control | `hidraw7` → `event19` | media keys land here |
 | 1.3 | boot mouse | `hidraw8` → `event20`, `mouse4` | mouse emulation |
 
 > `/dev/input/event*` is `root:input 0660` and this user is not in `input`, so
-> `evtest` / `libinput` need `sudo`. Raw `hidraw` nodes are `0666`, which is why
-> every diagnostic here reads hidraw instead.
+> `evtest` / `libinput` need `sudo`. `hidraw` nodes ship `0600 root:root` on
+> current Fedora, so `setup-udev.sh` grants the session user access to this
+> device's nodes — which is why everything here reads hidraw rather than evdev.
+>
+> The `hidrawN` numbers in this table are from one particular boot. **They
+> change on every replug** (`hidraw6/7/8` → `hidraw9/10/11` → …), so never
+> hardcode them; resolve from sysfs as `overlay/pad.py:pad_nodes()` does.
 
 ## Original problem
 
@@ -183,7 +188,14 @@ Register any new submenu in `TITLES` and return its items from `items_for`.
 - Reads `/dev/hidraw*` directly, so it needs no root, no `input` group and no
   Wayland global-shortcut portal. It still works when the overlay is not focused.
 - Node names are resolved from sysfs by matching `1189:8890`, **not** hardcoded
-  as `hidraw6` — node numbers shift whenever any USB device is plugged in.
+  as `hidraw6` — node numbers shift on every replug and on any other USB change.
+- **Reconnects on its own.** A held `hidraw` descriptor goes permanently silent
+  when the device is removed — no error, no hangup, so waiting for one never
+  fires. The reader therefore listens on the kernel uevent netlink socket and
+  re-syncs descriptors on add/remove events, plus a 30 s re-scan as a safety net.
+- **Idle cost:** one wakeup every 30 s for that safety net, zero otherwise; CPU
+  was immeasurable (0 ticks over 120 s) and the uevent socket is poll-based.
+  The 30 s figure is the price of surviving replugs — see `pad.py`.
 - GNOME/Wayland has no `wlr-layer-shell`, so the window cannot be positioned or
   pinned above other windows; the compositor centres it. It does not steal input
   focus from the app underneath for typing, but it is a normal toplevel, so it
@@ -224,14 +236,20 @@ ch57x-keyboard-tool upload   mapping.yaml
 ```
 
 The vendor interface has no hidraw node and `/dev/bus/usb/...` is root-only, so
-programming needs either `sudo` or the udev rule that `setup-udev.sh` installs:
+programming needs either `sudo` or the udev rules that `setup-udev.sh` installs:
 
 ```
+# programming (vendor config interface)
 SUBSYSTEM=="usb", ATTR{idVendor}=="1189", ATTR{idProduct}=="8890", TAG+="uaccess"
+
+# reading knob events (hidraw nodes ship 0600 root:root)
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1189", ATTRS{idProduct}=="8890", TAG+="uaccess"
 ```
 
-It grants the logged-in session user `rw` on the device node — confirm with
-`getfacl /dev/bus/usb/001/013` showing `user:<you>:rw-`.
+Both grant the logged-in session user access — confirm with
+`getfacl /dev/bus/usb/001/013` and `getfacl /dev/hidraw6` showing
+`user:<you>:rw-`. The hidraw rule is **not** optional: without it the overlay
+starts but reports `permission denied`, and the knob appears dead.
 
 ## Changing the mapping
 
@@ -318,6 +336,19 @@ overwrites the same config area. Re-upload `mapping.yaml`.
 **Nothing works at all, every key types `c`** — the config was wiped/reset.
 This is the original factory state; re-upload `mapping.yaml`.
 
+**Knob stopped working after replugging the pad** — the pad re-enumerates with
+new `hidraw` numbers and a stale descriptor goes silent without any error. The
+overlay re-syncs on udev events, so it should recover on its own within a
+second; if it does not, check `journalctl --user -f` / its stderr for
+`pad: attached`. Restarting the overlay is the fallback.
+
+**Knob dead and every key dead, but `lsusb` shows the device** — the firmware
+has stalled (observed once on this unit). It stops sending HID reports while
+staying healthy at the USB level: authorized, powered, answering control
+transfers, with `hid-generic` bound and input devices registered. No software
+fix exists; **unplug and replug**. If it recurs often, suspect the cable, the
+port, or USB power.
+
 ## Known limitations
 
 - **No read-back.** The chip is write-only: the current mapping cannot be
@@ -333,3 +364,10 @@ This is the original factory state; re-upload `mapping.yaml`.
   is inert for volume (keys 2 and 3 still work).
 - **The overlay window cannot be positioned** on GNOME/Wayland (no
   `wlr-layer-shell`); the compositor decides where it appears.
+- **No host-controllable per-key LEDs on this model.** The `0x8890` firmware
+  accepts only a single global LED mode byte. Per-key RGB protocols exist and
+  are confirmed for `0x8840`/`0x8842` and `0x514c:0x8850`, but not for this
+  model — three independent projects agree (`rOzzy1987/MacroPad`'s author,
+  `MacroPadStudio`'s device table, `jvspier/macropad-rebind`). Modes 0–5 give
+  canned effects only; mode 1 is a reactive breathing effect that fades out
+  when idle. Lighting an LED to mean "mic muted" would require custom firmware.

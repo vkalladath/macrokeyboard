@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# One-time setup: grant the active session user write access to the macro
-# pad's vendor configuration interface (1189:8890, interface 1.1, EP 0x02).
+# One-time setup: grant the active session user access to this macro pad.
 #
-# Without this, ch57x-keyboard-tool fails with
-# "Access denied (insufficient permissions)" because the config interface has
-# no hidraw node and /dev/bus/usb/... is root-only.
+# Two different device nodes are involved:
+#
+#   /dev/bus/usb/...   the vendor configuration interface (1.1, EP 0x02 OUT).
+#                      Needed to write mappings; has no hidraw node and no
+#                      driver, so ch57x-keyboard-tool needs usbfs access.
+#
+#   /dev/hidraw*       the keyboard/media interfaces the overlay reads to see
+#                      knob events. Shipped 0600 root:root on current Fedora,
+#                      so the overlay cannot read them as a normal user.
 #
 # Run once with sudo:   sudo ./setup-udev.sh
 set -euo pipefail
@@ -18,16 +23,22 @@ RULE=/etc/udev/rules.d/50-usb-macrokeyboard.rules
 
 cat > "${RULE}" <<'EOF'
 # CH57x macro pad (Trisat 1189:8890)
-# Grants the logged-in session user access to the vendor config interface so
-# ch57x-keyboard-tool can program key mappings without running as root.
+
+# 1. Vendor config interface: lets ch57x-keyboard-tool program the mapping
+#    without running as root.
 SUBSYSTEM=="usb", ATTR{idVendor}=="1189", ATTR{idProduct}=="8890", TAG+="uaccess"
+
+# 2. hidraw nodes: lets the overlay read knob events. Without this the nodes
+#    are 0600 root:root and the daemon reports "permission denied".
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1189", ATTRS{idProduct}=="8890", TAG+="uaccess"
 EOF
 
 udevadm control --reload
 udevadm trigger --subsystem-match=usb --action=add
+udevadm trigger --subsystem-match=hidraw --action=add
 
 echo "installed: ${RULE}"
 echo
-echo "Verify with (as your normal user):"
-echo "  getfacl /dev/bus/usb/\$(lsusb | awk '/1189:8890/{print \"00\"\$4}' | tr -d ':') 2>/dev/null"
-echo "  # or simply re-run: ./upload.sh"
+echo "Check, as your normal user:"
+echo "  ls -l /dev/hidraw* | grep '1189'   # or any hidraw with a '+' ACL"
+echo "  getfacl /dev/hidraw6 | grep \$USER"

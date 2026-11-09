@@ -21,9 +21,10 @@ IDLE_CLOSE_SECONDS = 12
 
 
 class Overlay(Gtk.Application):
-    def __init__(self, preview=False):
+    def __init__(self, preview=False, debug=False):
         super().__init__(application_id="io.github.vkalladath.macropadmenu")
         self.preview = preview
+        self.debug = debug
         self.stack = []
         self.index = 0
         self._idle_id = 0
@@ -48,8 +49,9 @@ class Overlay(Gtk.Application):
         if nodes:
             print(f"pad: reading {', '.join(nodes)}", file=sys.stderr)
         else:
-            print("warning: no pad found — arrow keys + Enter still work",
-                  file=sys.stderr)
+            print("warning: no pad connected", file=sys.stderr)
+        for problem in self.reader.problems:
+            print(f"pad error: {problem}", file=sys.stderr)
 
         if self.preview:
             self.open_menu()
@@ -211,6 +213,11 @@ class Overlay(Gtk.Application):
     # ---- input ---------------------------------------------------------
 
     def _on_encoder(self, action):
+        if self.debug:
+            state = self.stack[-1] if self.stack else "closed"
+            print(f"encoder: {action:5s}  menu={state:8s} index={self.index}",
+                  file=sys.stderr, flush=True)
+
         if self._visible():
             self._reset_idle()
             if action == "cw":
@@ -253,7 +260,7 @@ class Overlay(Gtk.Application):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    app = Overlay(preview="--preview" in argv)
+    app = Overlay(preview="--preview" in argv, debug="--debug" in argv)
     return app.run([sys.argv[0]])
 
 

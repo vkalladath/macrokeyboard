@@ -2,12 +2,16 @@
 """Capture + decode macropad HID reports from all three input interfaces."""
 import os, select, sys, time
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from overlay.pad import interface_of, pad_nodes  # noqa: E402
+
 DUR = float(sys.argv[1]) if len(sys.argv) > 1 else 90.0
 IDLE = 8.0
 
-# hidraw6 = if00 boot keyboard, hidraw7 = if02 17KRO keyboard + consumer,
-# hidraw8 = if03 boot mouse
-LABEL = {"/dev/hidraw6": "kbd6K", "/dev/hidraw7": "kbd17K/media", "/dev/hidraw8": "mouse"}
+# Label by USB interface number, not by hidraw name: node numbers change on
+# every replug (hidraw6/7/8 -> hidraw9/10/11), so hardcoding them silently
+# listens to the wrong device.
+IFACE_LABEL = {0: "kbd6K", 2: "kbd17K/media", 3: "mouse"}
 
 MODS = {0x01: "LCtrl", 0x02: "LShift", 0x04: "LAlt", 0x08: "LMeta",
         0x10: "RCtrl", 0x20: "RShift", 0x40: "RAlt", 0x80: "RMeta"}
@@ -66,7 +70,8 @@ def decode(which, data):
     return "?"
 
 
-paths = [p for p in ("/dev/hidraw6", "/dev/hidraw7", "/dev/hidraw8") if os.path.exists(p)]
+paths = [p for p in pad_nodes() if os.path.exists(p)]
+LABELS = {p: IFACE_LABEL.get(interface_of(p), "unknown") for p in paths}
 fds = {}
 for p in paths:
     f = open(p, "rb", buffering=0)
@@ -75,7 +80,7 @@ for p in paths:
 
 start = last = time.time()
 events = 0
-print(f"listening: {', '.join(f'{p} ({LABEL[p]})' for p in paths)}", flush=True)
+print(f"listening: {', '.join(f'{p} ({LABELS[p]})' for p in paths) or 'NOTHING FOUND'}", flush=True)
 
 while time.time() - start < DUR:
     r, _, _ = select.select(list(fds), [], [], 0.25)
@@ -89,7 +94,7 @@ while time.time() - start < DUR:
             continue
         events += 1
         last = time.time()
-        which = LABEL[path]
+        which = LABELS.get(path, "unknown")
         print(f"{time.time()-start:7.3f}s {which:12s} | {hexs(data):<34s} | {decode(which, data)}", flush=True)
     if events and time.time() - last > IDLE:
         print(f"--- idle {IDLE:.0f}s, stopping ---", flush=True)
