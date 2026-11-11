@@ -10,6 +10,7 @@ takes a moment and the first knob detent should not be delayed by it.
 """
 
 import atexit
+import os
 
 from . import audio
 
@@ -18,6 +19,11 @@ try:
 except Exception:  # pragma: no cover - depends on the host
     UInput = None
     ecodes = None
+
+# Set MACROPAD_VOLUME=pactl to bypass synthetic key events entirely and set
+# the volume directly. Used for A/B testing and as an escape hatch if the
+# virtual keyboard ever misbehaves.
+_FORCE_PACTL = os.environ.get("MACROPAD_VOLUME", "").strip().lower() == "pactl"
 
 _device = None
 _failed = False
@@ -63,6 +69,9 @@ def _tap(code, repeats):
 
 def step(direction, repeats=1):
     """direction: +1 louder, -1 quieter."""
+    if _FORCE_PACTL:
+        audio.volume_step(direction)
+        return
     if ecodes is not None:
         code = ecodes.KEY_VOLUMEUP if direction > 0 else ecodes.KEY_VOLUMEDOWN
         if _tap(code, repeats):

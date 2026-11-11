@@ -31,9 +31,14 @@ import gi
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib  # noqa: E402
 
-ENC_CCW = 0x68    # F13
+ENC_CCW = 0x6B    # F16, deliberately NOT F13
 ENC_CW = 0x69     # F14
 ENC_PRESS = 0x6A  # F15
+
+# F13 (0x68) is deliberately unused: on the reference machine that keycode
+# resolves to XF86Tools, which gnome-settings-daemon binds to the
+# "control-center" action, so every F13 press opened GNOME Settings. F14..F21
+# were verified inert.
 
 # HID usage -> logical action
 KNOB = {ENC_CCW: "ccw", ENC_CW: "cw", ENC_PRESS: "press"}

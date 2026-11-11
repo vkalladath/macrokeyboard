@@ -86,7 +86,7 @@ layers:
   - buttons:
       - ["ctrl-alt-shift-m", "play", "mute"]
     knobs:
-      - ccw: "f13"
+      - ccw: "f16"
         press: "f15"
         cw: "f14"
 ```
@@ -97,7 +97,7 @@ layers:
 | Key 2 (middle) | Consumer `0xCD` | play/pause |
 | Key 3 (right) | Consumer `0xE2` | mute (output) |
 | Knob ↻ | `F14` | overlay: next item · closed: volume up |
-| Knob ↺ | `F13` | overlay: previous item · closed: volume down |
+| Knob ↺ | `F16` | overlay: previous item · closed: volume down |
 | Knob press | `F15` | opens the overlay menu |
 
 Protocol bytes actually written to the device:
@@ -106,7 +106,7 @@ Protocol bytes actually written to the device:
 key 1:  03 01 11 01 01 07 10   macro, mods=0x07 (Ctrl+Shift+Alt), key=0x10 ('m')
 key 2:  03 02 12 cd 00         media usage 0x00CD
 key 3:  03 03 12 e2 00         media usage 0x00E2
-knob ↺: 03 0d 11 01 01 00 68   macro, no modifiers, key=0x68 (F13)
+knob ↺: 03 0d 11 01 01 00 6b   macro, no modifiers, key=0x6b (F16)
 knob ⏺: 03 0e 11 01 01 00 6a   macro, no modifiers, key=0x6A (F15)
 knob ↻: 03 0f 11 01 01 00 69   macro, no modifiers, key=0x69 (F14)
 ```
@@ -162,7 +162,7 @@ The log is the fastest way to diagnose a dead knob: `pad: detached … /
 pad: attached …` means a replug was handled, while nothing at all after a
 knob turn means the pad is not sending (see Troubleshooting).
 
-### Why the knob sends F13/F14/F15
+### Why the knob sends F16/F14/F15
 
 It used to send volume keys. Reusing those for menu navigation would change the
 system volume — with the OSD flashing — on every detent while scrolling. So the
@@ -184,6 +184,29 @@ no longer sends volume keys. Everything else on the pad is unaffected, and keys
 The virtual device appears in the system as an extra keyboard named
 "Macro pad volume". It has only the two volume keys and exists only while the
 overlay runs.
+
+### Avoid F13 for the counter-clockwise direction
+
+The knob originally used **F13** for counter-clockwise, and every turn opened
+GNOME Settings. `F13` resolves to the `XF86Tools` keysym on this keymap, and
+gnome-settings-daemon binds `XF86Tools` to the `control-center` action — so a
+knob turn launched `gnome-control-center`, which then opened whichever panel
+was last viewed (`org.gnome.Settings last-panel`), looking like a
+Bluetooth or Wi-Fi panel appearing at random.
+
+Diagnosed by emitting each keycode in isolation from a throwaway uinput device
+and watching for `gnome-control-center` in `/proc`:
+
+| Code | Effect |
+|---|---|
+| `F13` (0x68) | **opens GNOME Settings** |
+| `F14`…`F21` | inert |
+| `KEY_VOLUMEDOWN` / `KEY_VOLUMEUP` | adjust volume only |
+
+Note the trap that made this hard to find: matching processes with
+`pgrep -x gnome-control-center` **never matches**, because process names are
+truncated to 15 characters (`gnome-control-c`). Compare `argv[0]`'s basename
+instead — `diagnostics/watch-settings.py` does this correctly.
 
 ### Adding menu items
 
@@ -287,7 +310,7 @@ Action syntax (mouse, media, sequences, `delay()`):
 Example — change what the knob press opens (the overlay listens for `F15`):
 
 ```yaml
-      - ccw: "f13"
+      - ccw: "f16"
         press: "f15"
         cw: "f14"
 ```
@@ -316,7 +339,7 @@ Status of each piece, honestly:
 | Volume via uinput | synthetic keys moved the sink 97→100→94 | ✅ OSD path works |
 | Menu trees build | `items_for()` on every menu | ✅ |
 | Overlay launches | 3 s GTK4 run, no warnings | ✅ |
-| **Knob → F13/F14/F15** | — | ⏳ **not yet flashed** (pad was unplugged) |
+| Knob → F16/F14/F15 | raw HID capture | ✅ (F13 avoided, see below) |
 | **Overlay look & feel** | — | ⏳ needs your eyes |
 
 The knob remap is written to `mapping.yaml` but has **not** been uploaded to the
@@ -399,7 +422,7 @@ fades when idle; mode 0 draws nothing. For everyday use prefer **1** or **0**.
 - **No layer switching** — this pad has no layer button, so only one of the
   three firmware layers is programmed.
 - **Max 5 accords per key**, and `delay()` is unsupported on model `0x8890`.
-- **Knob volume depends on the overlay.** The knob emits `F13`/`F14`, so volume
+- **Knob volume depends on the overlay.** The knob emits `F16`/`F14`, so volume
   stepping only happens while `overlay/app.py` is running. If it dies, the knob
   is inert for volume (keys 2 and 3 still work).
 - **The overlay window cannot be positioned** on GNOME/Wayland (no

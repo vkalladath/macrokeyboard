@@ -6,6 +6,7 @@ Preview:  python3 -m overlay.app --preview     (opens immediately; arrow keys
 """
 
 import sys
+import time
 from pathlib import Path
 
 import gi
@@ -233,7 +234,8 @@ class Overlay(Gtk.Application):
     def _on_encoder(self, action):
         if self.debug:
             state = self.stack[-1] if self.stack else "closed"
-            print(f"encoder: {action:5s}  menu={state:8s} index={self.index}",
+            print(f"{time.strftime('%H:%M:%S')} encoder: {action:5s}  "
+                  f"menu={state:8s} index={self.index}",
                   file=sys.stderr, flush=True)
 
         if self._visible():

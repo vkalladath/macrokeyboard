@@ -20,13 +20,17 @@ layers:
       #   that nothing else uses and bind it in GNOME (see setup-mic-mute.sh).
       - ["ctrl-alt-shift-m", "play", "mute"]
     knobs:
-      # F13/F14/F15, NOT volume keys: the overlay uses the knob to navigate
-      # menus, and volume keys would change the system volume (and flash the
-      # OSD) on every detent while scrolling a menu.
+      # F16/F14/F15, NOT F13: on this machine the F13 keycode opens GNOME
+      # Settings (it resolves to XF86Tools, which gsd binds to
+      # control-center). Verified by emitting each code in isolation —
+      # F13 opens Settings, F14..F21 are inert.
       #
-      # overlay/app.py handles both jobs: menu navigation when the overlay is
-      # open, volume steps when it is closed. That means knob-volume needs the
-      # overlay running — see README.md.
-      - ccw: "f13"
+      # NOT volume keys either: the overlay uses the knob for menu
+      # navigation, and volume keys would change the system volume (and
+      # flash the OSD) on every detent while scrolling a menu.
+      #
+      # overlay/app.py handles both jobs: menu navigation when the overlay
+      # is open, volume steps when it is closed.
+      - ccw: "f16"
         press: "f15"
         cw: "f14"

@@ -59,7 +59,9 @@ def settings_pids():
         if not raw:
             continue
         argv0 = raw.split(b"\x00")[0].decode("utf-8", "replace")
-        if argv0.endswith("/gnome-control-center"):
+        # basename, not endswith("/gnome-control-center"): a process started by
+        # name has argv[0] == "gnome-control-center" with no slash at all.
+        if os.path.basename(argv0) == "gnome-control-center":
             found.add(int(path.split("/")[2]))
     return found
 
