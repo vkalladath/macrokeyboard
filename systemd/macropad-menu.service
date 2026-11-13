@@ -3,13 +3,19 @@ Description=Macro pad overlay menu
 Documentation=https://github.com/vkalladath/macrokeyboard
 After=graphical-session.target
 PartOf=graphical-session.target
+# Give up only if it is crash-looping hard, rather than every-2-seconds forever.
+StartLimitIntervalSec=60
+StartLimitBurst=10
 
 [Service]
 Type=simple
 # Adjust WorkingDirectory if the repo lives somewhere else.
 WorkingDirectory=%h/projects/macrokeyboard
 ExecStart=/usr/bin/python3 -m overlay.app
-Restart=on-failure
+# Restart=always, not on-failure: a clean exit (for example a stray SIGTERM
+# from a session teardown) previously left the overlay dead for days with no
+# indication beyond a knob that did nothing.
+Restart=always
 RestartSec=2
 
 [Install]

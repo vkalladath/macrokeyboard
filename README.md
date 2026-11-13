@@ -385,6 +385,23 @@ overlay re-syncs on udev events, so it should recover on its own within a
 second; if it does not, check `journalctl --user -f` / its stderr for
 `pad: attached`. Restarting the overlay is the fallback.
 
+**Knob does nothing at all, pad detected fine** — check the service first:
+
+```bash
+systemctl --user is-active macropad-menu.service
+```
+
+The unit uses `Restart=always` precisely because of this: it once exited with a
+SIGTERM-like status on a session teardown, `Result=success` meant
+`Restart=on-failure` never brought it back, and the overlay stayed dead for two
+days with nothing worse than a dead knob to show for it.
+
+**Knob dead after moving the pad to another USB port** — the port change
+re-enumerates the device and moves its `hidraw` nodes. The overlay re-syncs from
+udev events, so it should recover within a second; the log shows
+`pad: detached … / pad: attached …`. The udev rules match on vendor/product, not
+port, so permissions follow the device automatically.
+
 **Knob dead and every key dead, but `lsusb` shows the device** — the firmware
 has stalled (observed once on this unit). It stops sending HID reports while
 staying healthy at the USB level: authorized, powered, answering control
